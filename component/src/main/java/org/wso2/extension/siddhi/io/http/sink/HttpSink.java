@@ -25,6 +25,7 @@ import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
+
 import org.apache.log4j.Logger;
 import org.wso2.carbon.messaging.Header;
 import org.wso2.extension.siddhi.io.http.sink.util.HttpSinkUtil;
@@ -37,12 +38,14 @@ import org.wso2.siddhi.annotation.util.DataType;
 import org.wso2.siddhi.core.config.SiddhiAppContext;
 import org.wso2.siddhi.core.exception.ConnectionUnavailableException;
 import org.wso2.siddhi.core.exception.SiddhiAppCreationException;
+import org.wso2.siddhi.core.exception.SiddhiAppRuntimeException;
 import org.wso2.siddhi.core.stream.output.sink.Sink;
 import org.wso2.siddhi.core.util.config.ConfigReader;
 import org.wso2.siddhi.core.util.transport.DynamicOptions;
 import org.wso2.siddhi.core.util.transport.Option;
 import org.wso2.siddhi.core.util.transport.OptionHolder;
 import org.wso2.siddhi.query.api.definition.StreamDefinition;
+import org.wso2.siddhi.query.api.exception.SiddhiAppValidationException;
 import org.wso2.transport.http.netty.common.Constants;
 import org.wso2.transport.http.netty.common.ProxyServerConfiguration;
 import org.wso2.transport.http.netty.config.SenderConfiguration;
@@ -51,8 +54,12 @@ import org.wso2.transport.http.netty.contract.HttpWsConnectorFactory;
 import org.wso2.transport.http.netty.contractimpl.HttpWsConnectorFactoryImpl;
 import org.wso2.transport.http.netty.message.HTTPCarbonMessage;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.net.UnknownHostException;
 import java.nio.charset.Charset;
+import java.util.HashMap;
+import java.util.InputMismatchException;
 import java.util.List;
 import java.util.Map;
 
@@ -121,6 +128,13 @@ import java.util.Map;
                         type = {DataType.STRING},
                         optional = true,
                         defaultValue = " "),
+                @Parameter(
+                        name = "encode.payload",
+                        description = "This defines whether the body of the payload of http message should be encoded" +
+                                " or not. This is useful when sending form data as url encoded values.",
+                        type = {DataType.BOOL},
+                        optional = true,
+                        defaultValue = "false"),
                 @Parameter(
                         name = "method",
                         description = "For HTTP events, HTTP_METHOD header should be included as a request header." +
@@ -416,6 +430,7 @@ public class HttpSink extends Sink {
     private String userName;
     private String userPassword;
     private String publisherURL;
+    private boolean encodePayload;
 
     /**
      * Returns the list of classes which this sink can consume.
@@ -427,7 +442,7 @@ public class HttpSink extends Sink {
      */
     @Override
     public Class[] getSupportedInputEventClasses() {
-        return new Class[]{String.class};
+        return new Class[] {String.class, Object.class};
     }
 
     /**
@@ -438,7 +453,7 @@ public class HttpSink extends Sink {
      */
     @Override
     public String[] getSupportedDynamicOptions() {
-        return new String[]{HttpConstants.HEADERS, HttpConstants.METHOD};
+        return new String[] {HttpConstants.HEADERS, HttpConstants.METHOD, HttpConstants.CONTENT_TYPE};
     }
 
     /**
@@ -501,6 +516,14 @@ public class HttpSink extends Sink {
                 .CLIENT_BOOTSTRAP_WORKER_GROUP_SIZE, HttpConstants.CLIENT_BOOTSTRAP_WORKER_GROUP_SIZE_VALUE);
         String bootstrapBoss = configReader.readConfig(HttpConstants
                 .CLIENT_BOOTSTRAP_BOSS_GROUP_SIZE, HttpConstants.CLIENT_BOOTSTRAP_BOSS_GROUP_SIZE_VALUE);
+        try {
+            encodePayload =
+                    Boolean.parseBoolean(optionHolder.validateAndGetStaticValue(HttpConstants.ENCODE, "false"));
+        } catch (InputMismatchException e) {
+            throw new SiddhiAppValidationException("Option value provided for attribute " +
+                    "'encodePayload' is not of type Boolean.");
+        }
+
         //Generate basic sender configurations
         SenderConfiguration senderConfig = HttpSinkUtil.getSenderConfigurations(httpURLProperties,
                 clientStoreFile, clientStorePass, configReader);
@@ -596,7 +619,7 @@ public class HttpSink extends Sink {
                 HttpConstants.METHOD_DEFAULT : httpMethodOption.getValue(dynamicOptions);
         List<Header> headersList = HttpSinkUtil.getHeaders(headers);
         String contentType = HttpSinkUtil.getContentType(mapType, headersList);
-        String messageBody = (String) payload;
+        String messageBody = getPayload(payload);
         HTTPCarbonMessage cMessage = createHttpCarbonMessage(httpMethod);
         cMessage = generateCarbonMessage(headersList, contentType, httpMethod, cMessage);
         cMessage.addHttpContent(new DefaultLastHttpContent(Unpooled.wrappedBuffer(messageBody
@@ -755,5 +778,25 @@ public class HttpSink extends Sink {
         //set method-type header
         httpHeaders.set(HttpConstants.HTTP_METHOD, httpMethod);
         return cMessage;
+    }
+
+    private String getPayload(Object payload) {
+        if (payload instanceof Map) {
+            StringBuilder stringBuilder = new StringBuilder();
+            Map<String, Object> data = (HashMap) payload;
+            for (Map.Entry entry : data.entrySet()) {
+                try {
+                    stringBuilder
+                            .append(URLEncoder.encode(entry.getKey().toString(), HttpConstants.DEFAULT_ENCODING))
+                            .append("=")
+                            .append(URLEncoder.encode(entry.getValue().toString(), HttpConstants.DEFAULT_ENCODING))
+                            .append("&");
+                } catch (UnsupportedEncodingException e) {
+                    throw new SiddhiAppRuntimeException("Execution failed due to " + e.getMessage(), e);
+                }
+            }
+            return stringBuilder.deleteCharAt(stringBuilder.length() - 1).toString();
+        }
+        return (String) payload;
     }
 }
