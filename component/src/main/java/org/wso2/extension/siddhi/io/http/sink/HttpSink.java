@@ -131,7 +131,8 @@ import java.util.Map;
                 @Parameter(
                         name = "encode.payload",
                         description = "This defines whether the body of the payload of http message should be encoded" +
-                                " or not. This is useful when sending form data as url encoded values.",
+                                " or not. This is useful when sending form data as url encoded values." +
+                                " Note that this can be used only when the mapper type is keyvalue.",
                         type = {DataType.BOOL},
                         optional = true,
                         defaultValue = "false"),
@@ -781,22 +782,26 @@ public class HttpSink extends Sink {
     }
 
     private String getPayload(Object payload) {
-        if (payload instanceof Map) {
-            StringBuilder stringBuilder = new StringBuilder();
-            Map<String, Object> data = (HashMap) payload;
-            for (Map.Entry entry : data.entrySet()) {
-                try {
-                    stringBuilder
-                            .append(URLEncoder.encode(entry.getKey().toString(), HttpConstants.DEFAULT_ENCODING))
-                            .append("=")
-                            .append(URLEncoder.encode(entry.getValue().toString(), HttpConstants.DEFAULT_ENCODING))
-                            .append("&");
-                } catch (UnsupportedEncodingException e) {
-                    throw new SiddhiAppRuntimeException("Execution failed due to " + e.getMessage(), e);
-                }
+        if (HttpConstants.MAP_KEYVALUE.equals(mapType)) {
+            Map<String, Object> params = (HashMap) payload;
+            if (encodePayload) {
+                return params.entrySet().stream()
+                        .map(p -> encodeParameter(p.getKey()) + "=" + encodeParameter(p.getValue()))
+                        .reduce("", (p1, p2) -> p1 + "&" + p2);
+            } else {
+                return params.entrySet().stream()
+                        .map(p -> p.getKey() + "=" + p.getValue())
+                        .reduce("", (p1, p2) -> p1 + "&" + p2);
             }
-            return stringBuilder.deleteCharAt(stringBuilder.length() - 1).toString();
         }
         return (String) payload;
+    }
+
+    private String encodeParameter(Object s) {
+        try {
+            return URLEncoder.encode(s.toString(), HttpConstants.DEFAULT_ENCODING);
+        } catch (UnsupportedEncodingException e) {
+            throw new SiddhiAppRuntimeException("Execution failed due to " + e.getMessage(), e);
+        }
     }
 }
