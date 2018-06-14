@@ -18,9 +18,12 @@
  */
 package org.wso2.extension.siddhi.io.http.sink;
 
+import static org.wso2.extension.siddhi.io.http.util.HttpConstants.EMPTY_STRING;
+
 import org.apache.log4j.Logger;
 import org.wso2.carbon.messaging.Header;
 import org.wso2.extension.siddhi.io.http.sink.util.HttpSinkUtil;
+import org.wso2.extension.siddhi.io.http.util.HTTPSinkRegistry;
 import org.wso2.extension.siddhi.io.http.util.HTTPSourceRegistry;
 import org.wso2.extension.siddhi.io.http.util.HttpConstants;
 import org.wso2.siddhi.annotation.Example;
@@ -35,14 +38,24 @@ import org.wso2.siddhi.core.util.transport.DynamicOptions;
 import org.wso2.siddhi.core.util.transport.Option;
 import org.wso2.siddhi.core.util.transport.OptionHolder;
 import org.wso2.siddhi.query.api.definition.StreamDefinition;
+import org.wso2.transport.http.netty.common.Constants;
+import org.wso2.transport.http.netty.contract.HttpResponseFuture;
+import org.wso2.transport.http.netty.message.HTTPCarbonMessage;
 
+import java.nio.charset.Charset;
 import java.util.List;
 import java.util.Map;
+
+import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.http.DefaultHttpRequest;
+import io.netty.handler.codec.http.DefaultLastHttpContent;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpVersion;
 
 /**
  * {@code HttpResponseSink} Handle the HTTP publishing tasks.
  */
-@Extension(name = "http-response", namespace = "sink",
+@Extension(name = "http-request", namespace = "sink",
         description = "HTTP response sink is correlated with the " +
                 "The HTTP request source, through a unique `source.id`, and it send a response to the HTTP request " +
                 "source having the same `source.id`. The response message can be formatted in `text`, `XML` or `JSON` "
@@ -107,40 +120,11 @@ import java.util.Map;
                                         + "Content-Type:'application/json'\n"
                 )}
 )
-public class HttpResponseSink extends Sink {
+public class HttpRequestSink extends HttpSink {
 
-    private static final Logger log = Logger.getLogger(HttpResponseSink.class);
-    private Option messageIdOption;
+    private static final Logger log = Logger.getLogger(HttpRequestSink.class);
     private String sourceId;
-    private Option httpHeaderOption;
-    private String mapType;
-
-    /**
-     * Returns the list of classes which this sink can consume.
-     * Based on the type of the sink, it may be limited to being able to publish specific type of classes.
-     * For example, a sink of type file can only write objects of type String .
-     *
-     * @return array of supported classes , if extension can support of any types of classes
-     * then return empty array .
-     */
-    @Override
-    public Class[] getSupportedInputEventClasses() {
-        return new Class[]{String.class};
-    }
-
-    /**
-     * Returns a list of supported dynamic options (that means for each event value of the option can change) by
-     * the transport
-     *
-     * @return the list of supported dynamic option keys
-     */
-    @Override
-    public String[] getSupportedDynamicOptions() {
-        return new String[]{
-                HttpConstants.HEADERS,
-                HttpConstants.MESSAGE_ID
-        };
-    }
+    private long connectionTimeout;
 
     /**
      * The initialization method for {@link Sink}, which will be called before other methods and validate
@@ -156,8 +140,11 @@ public class HttpResponseSink extends Sink {
     @Override
     protected void init(StreamDefinition outputStreamDefinition, OptionHolder optionHolder,
                         ConfigReader configReader, SiddhiAppContext siddhiAppContext) {
+        super.init(outputStreamDefinition, optionHolder, configReader, siddhiAppContext);
         //read configurations
-        this.messageIdOption = optionHolder.validateAndGetOption(HttpConstants.MESSAGE_ID);
+        //this.messageIdOption = optionHolder.validateAndGetOption(HttpConstants.MESSAGE_ID);
+        this.connectionTimeout =
+                Long.parseLong(optionHolder.validateAndGetStaticValue(HttpConstants.CONNECTION_TIMEOUT));
         this.sourceId = optionHolder.validateAndGetStaticValue(HttpConstants.SOURCE_ID);
         this.httpHeaderOption = optionHolder.getOrCreateOption(HttpConstants.HEADERS, HttpConstants.DEFAULT_HEADER);
         this.mapType = outputStreamDefinition.getAnnotations().get(0).getAnnotations().get(0).getElements().get(0)
@@ -174,68 +161,24 @@ public class HttpResponseSink extends Sink {
      *                                        such that the  system will take care retrying for connection
      */
     @Override
-    public void publish(Object payload, DynamicOptions dynamicOptions) throws ConnectionUnavailableException {
-
+    public void publish(Object payload, DynamicOptions dynamicOptions) {
         String headers = httpHeaderOption.getValue(dynamicOptions);
+        String httpMethod = EMPTY_STRING.equals(httpMethodOption.getValue(dynamicOptions)) ?
+                HttpConstants.METHOD_DEFAULT : httpMethodOption.getValue(dynamicOptions);
         List<Header> headersList = HttpSinkUtil.getHeaders(headers);
-        String messageId = messageIdOption.getValue(dynamicOptions);
         String contentType = HttpSinkUtil.getContentType(mapType, headersList);
-        HTTPSourceRegistry.
-                getRequestSource(sourceId).handleCallback(messageId, (String) payload, headersList, contentType);
-    }
-
-    /**
-     * This method will be called before the processing method.
-     * Intention to establish connection to publish event.
-     *
-     * @throws ConnectionUnavailableException if end point is unavailable the ConnectionUnavailableException thrown
-     *                                        such that the  system will take care retrying for connection
-     */
-    @Override
-    public void connect() throws ConnectionUnavailableException {
-
-    }
-
-    /**
-     * Called after all publishing is done, or when {@link ConnectionUnavailableException} is thrown
-     * Implementation of this method should contain the steps needed to disconnect from the sink.
-     */
-    @Override
-    public void disconnect() {
-
-    }
-
-    /**
-     * The method can be called when removing an event receiver.
-     * The cleanups that has to be done when removing the receiver has to be done here.
-     */
-    @Override
-    public void destroy() {
-
-    }
-
-    /**
-     * Used to collect the serializable state of the processing element, that need to be
-     * persisted for reconstructing the element to the same state on a different point of time
-     * This is also used to identify the internal states and debuging
-     *
-     * @return all internal states should be return as an map with meaning full keys
-     */
-    @Override
-    public Map<String, Object> currentState() {
-        //no current state.
-        return null;
-    }
-
-    /**
-     * Used to restore serialized state of the processing element, for reconstructing
-     * the element to the same state as if was on a previous point of time.
-     *
-     * @param state the stateful objects of the processing element as a map.
-     *              This map will have the  same keys that is created upon calling currentState() method.
-     */
-    @Override
-    public void restoreState(Map<String, Object> state) {
-        //no need to maintain.
+        String messageBody = getMessageBody(payload);
+        HttpMethod httpReqMethod = new HttpMethod(httpMethod);
+        HTTPCarbonMessage cMessage = new HTTPCarbonMessage(
+                new DefaultHttpRequest(HttpVersion.HTTP_1_1, httpReqMethod, EMPTY_STRING));
+        cMessage = generateCarbonMessage(headersList, contentType, httpMethod, cMessage);
+        if (!Constants.HTTP_GET_METHOD.equals(httpMethod)) {
+            cMessage.addHttpContent(new DefaultLastHttpContent(Unpooled.wrappedBuffer(messageBody
+                    .getBytes(Charset.defaultCharset()))));
+        }
+        cMessage.completeMessage();
+        HttpResponseFuture httpResponseFuture = clientConnector.send(cMessage);
+        httpResponseFuture.setHttpConnectorListener(HTTPSourceRegistry.getResponseSource(sourceId)
+                .getConnectorListener());
     }
 }

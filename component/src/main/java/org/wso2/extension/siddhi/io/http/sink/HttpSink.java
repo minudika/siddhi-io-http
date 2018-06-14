@@ -429,16 +429,16 @@ import static org.wso2.extension.siddhi.io.http.util.HttpConstants.SOCKET_IDEAL_
 )
 public class HttpSink extends Sink {
     private static final Logger log = Logger.getLogger(HttpSink.class);
-    private String streamID;
-    private HttpClientConnector clientConnector;
-    private String mapType;
-    private Map<String, String> httpURLProperties;
-    private Option httpHeaderOption;
-    private Option httpMethodOption;
-    private String authorizationHeader;
-    private String userName;
-    private String userPassword;
-    private String publisherURL;
+    protected String streamID;
+    protected HttpClientConnector clientConnector;
+    protected String mapType;
+    protected Map<String, String> httpURLProperties;
+    protected Option httpHeaderOption;
+    protected Option httpMethodOption;
+    protected String authorizationHeader;
+    protected String userName;
+    protected String userPassword;
+    protected String publisherURL;
 
     /**
      * Returns the list of classes which this sink can consume.
@@ -707,7 +707,7 @@ public class HttpSink extends Sink {
      * @param cMessage    carbon message to be send to the endpoint.
      * @return generated carbon message.
      */
-    private HTTPCarbonMessage generateCarbonMessage(List<Header> headers, String contentType,
+    protected HTTPCarbonMessage generateCarbonMessage(List<Header> headers, String contentType,
                                                     String httpMethod, HTTPCarbonMessage cMessage) {
         /*
          * set carbon message properties which is to be used in carbon transport.
@@ -753,7 +753,7 @@ public class HttpSink extends Sink {
         return cMessage;
     }
 
-    private String getMessageBody(Object payload) {
+    protected String getMessageBody(Object payload) {
         if (HttpConstants.MAP_KEYVALUE.equals(mapType)) {
             Map<String, Object> params = (HashMap) payload;
             return params.entrySet().stream()
@@ -764,7 +764,7 @@ public class HttpSink extends Sink {
         }
     }
 
-    private String encodeMessage(Object s) {
+    protected String encodeMessage(Object s) {
         try {
             return URLEncoder.encode((String) s, HttpConstants.DEFAULT_ENCODING);
         } catch (UnsupportedEncodingException e) {

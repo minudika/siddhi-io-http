@@ -70,4 +70,52 @@ public class HttpRequestResponseTestCase {
 
         siddhiAppRuntime.shutdown();
     }
+
+
+    @Test
+    public void testHTTPTextMappingXML2() throws Exception {
+
+        URI baseURI = URI.create(String.format("http://%s:%d", "localhost", 8010));
+        PersistenceStore persistenceStore = new InMemoryPersistenceStore();
+
+        SiddhiManager siddhiManager = new SiddhiManager();
+        siddhiManager.setPersistenceStore(persistenceStore);
+        siddhiManager.setExtension("xml-output-mapper", XMLSinkMapper.class);
+        siddhiManager.setExtension("xml-input-mapper", XmlSourceMapper.class);
+        String inStreamDefinition =
+                "@sink(type='http-request', source.id='testsource', message.id='{{messageId}}', " +
+                "@map(type='xml', @payload('<event><param1>{{param1}}</param1></event>')))\n" +
+                "define stream OutputStream (messageId string, param1 string);\n" +
+                "from InputStream\n" +
+                "select messageId, param1\n" +
+                "insert into OutputStream;" +
+                "" +
+                "@Source(type = 'http-response', source.id='testsource', " +
+                "basic.auth.enabled='false',receiver.url='http://localhost:8010/TestHTTPRequestResponse/InputStream', " +
+                "@map(type='xml', @attributes(messageId='trp:messageId',param1='/event/param1'," +
+                "param2='/event/param2')))\n" +
+                "define stream InputStream (messageId string, param1 string, param2 string);\n" +
+                "" +
+                "@sink(type='http-request', source.id='testsource', message.id='{{messageId}}', " +
+                "@map(type='xml', @payload('<event><param1>{{param1}}</param1></event>')))\n" +
+                "define stream OutputStream (messageId string, param1 string);\n" +
+                "from InputStream\n" +
+                "select messageId, param1\n" +
+                "insert into OutputStream;";
+
+        SiddhiAppRuntime siddhiAppRuntime = siddhiManager.createSiddhiAppRuntime(inStreamDefinition);
+        siddhiAppRuntime.start();
+
+        String event1 = "<event>\n" +
+                "  <param1>param1</param1>\n" +
+                "  <param2>param2</param2>\n" +
+                "  </event>";
+
+
+        String response = HttpTestUtil.sendHttpEvent(event1, baseURI, "/TestHTTPRequestResponse/InputStream",
+                false, "application/xml");
+        Assert.assertEquals(response, "<event><param1>param1</param1></event>");
+
+        siddhiAppRuntime.shutdown();
+    }
 }
