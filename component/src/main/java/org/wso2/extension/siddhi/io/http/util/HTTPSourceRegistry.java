@@ -18,7 +18,6 @@
  */
 package org.wso2.extension.siddhi.io.http.util;
 
-import org.apache.http.HttpResponse;
 import org.wso2.extension.siddhi.io.http.source.HttpRequestSource;
 import org.wso2.extension.siddhi.io.http.source.HttpResponseSource;
 

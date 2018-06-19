@@ -92,7 +92,7 @@ public class HttpSinkTestCase {
         siddhiAppRuntime.start();
         //HttpServerListenerHandler lst = new HttpServerListenerHandler(8005);
         //lst.run();
-        fooStream.send(new Object[] {payload1,"'Name:John','Age:23','content-type:application/json'"});
+        fooStream.send(new Object[] {payload1, "'Name:John','Age:23','content-type:application/json'"});
        /* while (!lst.getServerListener().isMessageArrive()) {
             Thread.sleep(10);
         }*/

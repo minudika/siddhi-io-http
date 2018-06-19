@@ -18,7 +18,11 @@
  */
 package org.wso2.extension.siddhi.io.http.source;
 
+import io.netty.util.HashedWheelTimer;
+import io.netty.util.Timeout;
+
 import org.apache.log4j.Logger;
+
 import org.wso2.carbon.messaging.ClientConnector;
 import org.wso2.extension.siddhi.io.http.util.HTTPSourceRegistry;
 import org.wso2.extension.siddhi.io.http.util.HttpConstants;
@@ -39,9 +43,6 @@ import org.wso2.transport.http.netty.message.HTTPCarbonMessage;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
-
-import io.netty.util.HashedWheelTimer;
-import io.netty.util.Timeout;
 
 /**
  * Http source for receive the http and https request.
@@ -423,6 +424,7 @@ public class HttpResponseSource extends Source {
     private SourceEventListener sourceEventListener;
     private String[] requestedTransportPropertyNames;
     private HttpResponseSourceListener httpResponseSourceListener;
+    private Map<String, Object> transportPropertyValues;
 
     private Map<String, HTTPCarbonMessage> requestContainerMap = new ConcurrentHashMap<>();
 
@@ -501,5 +503,9 @@ public class HttpResponseSource extends Source {
 
     public HttpResponseSourceListener getConnectorListener() {
         return httpResponseSourceListener;
+    }
+
+    public void updateTrpPropertyValues(Map<String, Object> transportPropertyValues) {
+        this.transportPropertyValues = transportPropertyValues;
     }
 }

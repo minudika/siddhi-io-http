@@ -91,7 +91,7 @@ public class HttpRequestResponseTestCase {
                 "insert into OutputStream;" +
                 "" +
                 "@Source(type = 'http-response', source.id='testsource', " +
-                "basic.auth.enabled='false',receiver.url='http://localhost:8010/TestHTTPRequestResponse/InputStream', " +
+                "basic.auth.enabled='false',receiver.url='http://localhost:8010/TestHTTPRequestResponse/InputStream'," +
                 "@map(type='xml', @attributes(messageId='trp:messageId',param1='/event/param1'," +
                 "param2='/event/param2')))\n" +
                 "define stream InputStream (messageId string, param1 string, param2 string);\n" +

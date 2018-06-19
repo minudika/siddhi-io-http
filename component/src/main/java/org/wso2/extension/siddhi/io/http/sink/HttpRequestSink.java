@@ -18,12 +18,16 @@
  */
 package org.wso2.extension.siddhi.io.http.sink;
 
-import static org.wso2.extension.siddhi.io.http.util.HttpConstants.EMPTY_STRING;
+import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.http.DefaultHttpRequest;
+import io.netty.handler.codec.http.DefaultLastHttpContent;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpVersion;
 
 import org.apache.log4j.Logger;
 import org.wso2.carbon.messaging.Header;
 import org.wso2.extension.siddhi.io.http.sink.util.HttpSinkUtil;
-import org.wso2.extension.siddhi.io.http.util.HTTPSinkRegistry;
+import org.wso2.extension.siddhi.io.http.source.HttpResponseSource;
 import org.wso2.extension.siddhi.io.http.util.HTTPSourceRegistry;
 import org.wso2.extension.siddhi.io.http.util.HttpConstants;
 import org.wso2.siddhi.annotation.Example;
@@ -31,26 +35,21 @@ import org.wso2.siddhi.annotation.Extension;
 import org.wso2.siddhi.annotation.Parameter;
 import org.wso2.siddhi.annotation.util.DataType;
 import org.wso2.siddhi.core.config.SiddhiAppContext;
-import org.wso2.siddhi.core.exception.ConnectionUnavailableException;
-import org.wso2.siddhi.core.stream.output.sink.Sink;
 import org.wso2.siddhi.core.util.config.ConfigReader;
 import org.wso2.siddhi.core.util.transport.DynamicOptions;
-import org.wso2.siddhi.core.util.transport.Option;
 import org.wso2.siddhi.core.util.transport.OptionHolder;
+import org.wso2.siddhi.query.api.definition.Attribute;
 import org.wso2.siddhi.query.api.definition.StreamDefinition;
 import org.wso2.transport.http.netty.common.Constants;
 import org.wso2.transport.http.netty.contract.HttpResponseFuture;
 import org.wso2.transport.http.netty.message.HTTPCarbonMessage;
 
 import java.nio.charset.Charset;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import io.netty.buffer.Unpooled;
-import io.netty.handler.codec.http.DefaultHttpRequest;
-import io.netty.handler.codec.http.DefaultLastHttpContent;
-import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpVersion;
+import static org.wso2.extension.siddhi.io.http.util.HttpConstants.EMPTY_STRING;
 
 /**
  * {@code HttpResponseSink} Handle the HTTP publishing tasks.
@@ -124,31 +123,17 @@ public class HttpRequestSink extends HttpSink {
 
     private static final Logger log = Logger.getLogger(HttpRequestSink.class);
     private String sourceId;
-    private long connectionTimeout;
+    private StreamDefinition streamDefinition;
 
-    /**
-     * The initialization method for {@link Sink}, which will be called before other methods and validate
-     * the all configuration and getting the intial values.
-     *
-     * @param outputStreamDefinition containing stream definition bind to the {@link Sink}
-     * @param optionHolder           Option holder containing static and dynamic configuration related
-     *                               to the {@link Sink}
-     * @param configReader           to read the sink related system configuration.
-     * @param siddhiAppContext       the context of the {@link org.wso2.siddhi.query.api.SiddhiApp} used to
-     *                               get siddhi related utilty functions.
-     */
     @Override
     protected void init(StreamDefinition outputStreamDefinition, OptionHolder optionHolder,
                         ConfigReader configReader, SiddhiAppContext siddhiAppContext) {
         super.init(outputStreamDefinition, optionHolder, configReader, siddhiAppContext);
-        //read configurations
-        //this.messageIdOption = optionHolder.validateAndGetOption(HttpConstants.MESSAGE_ID);
-        this.connectionTimeout =
-                Long.parseLong(optionHolder.validateAndGetStaticValue(HttpConstants.CONNECTION_TIMEOUT));
         this.sourceId = optionHolder.validateAndGetStaticValue(HttpConstants.SOURCE_ID);
         this.httpHeaderOption = optionHolder.getOrCreateOption(HttpConstants.HEADERS, HttpConstants.DEFAULT_HEADER);
         this.mapType = outputStreamDefinition.getAnnotations().get(0).getAnnotations().get(0).getElements().get(0)
                 .getValue();
+        this.streamDefinition = outputStreamDefinition;
     }
 
 
@@ -157,8 +142,6 @@ public class HttpRequestSink extends HttpSink {
      *
      * @param payload        payload of the event based on the supported event class exported by the extensions
      * @param dynamicOptions holds the dynamic options of this sink and Use this object to obtain dynamic options.
-     * @throws ConnectionUnavailableException if end point is unavailable the ConnectionUnavailableException thrown
-     *                                        such that the  system will take care retrying for connection
      */
     @Override
     public void publish(Object payload, DynamicOptions dynamicOptions) {
@@ -178,7 +161,18 @@ public class HttpRequestSink extends HttpSink {
         }
         cMessage.completeMessage();
         HttpResponseFuture httpResponseFuture = clientConnector.send(cMessage);
-        httpResponseFuture.setHttpConnectorListener(HTTPSourceRegistry.getResponseSource(sourceId)
-                .getConnectorListener());
+        HttpResponseSource source = HTTPSourceRegistry.getResponseSource(sourceId);
+        source.updateTrpPropertyValues(getTrpProperties(dynamicOptions));
+        httpResponseFuture.setHttpConnectorListener(source.getConnectorListener());
+    }
+
+    private Map<String, Object> getTrpProperties(DynamicOptions dynamicOptions) {
+        Map<String, Object> trpProperties = new HashMap<>();
+        List<Attribute> attributes = streamDefinition.getAttributeList();
+        Object[] data = dynamicOptions.getEvent().getData();
+        for (int i = 0; i < attributes.size(); i++) {
+            trpProperties.put(attributes.get(i).getName(), data[i]);
+        }
+        return trpProperties;
     }
 }
