@@ -45,7 +45,6 @@ import org.wso2.siddhi.core.util.transport.DynamicOptions;
 import org.wso2.siddhi.core.util.transport.Option;
 import org.wso2.siddhi.core.util.transport.OptionHolder;
 import org.wso2.siddhi.query.api.definition.StreamDefinition;
-import org.wso2.siddhi.query.api.exception.SiddhiAppValidationException;
 import org.wso2.transport.http.netty.common.Constants;
 import org.wso2.transport.http.netty.common.ProxyServerConfiguration;
 import org.wso2.transport.http.netty.config.SenderConfiguration;
@@ -59,7 +58,6 @@ import java.net.URLEncoder;
 import java.net.UnknownHostException;
 import java.nio.charset.Charset;
 import java.util.HashMap;
-import java.util.InputMismatchException;
 import java.util.List;
 import java.util.Map;
 
@@ -71,7 +69,13 @@ import java.util.Map;
                 "or https protocols. As the additional features this component can provide basic authentication " +
                 "as well as user can publish events using custom client truststore files when publishing events " +
                 "via https protocol. And also user can add any number of headers including HTTP_METHOD header for " +
-                "each event dynamically.",
+                "each event dynamically.\n" +
+                "Following content types will be set by default according to the type of sink mapper used.\n" +
+                "You can override them by setting the new content types in headers.\n" +
+                "     - TEXT : text/plain\n" +
+                "     - XML : application/xml\n" +
+                "     - JSON : application/json\n" +
+                "     - KEYVALUE : application/x-www-form-urlencoded",
         parameters = {
                 @Parameter(
                         name = "publisher.url",
@@ -116,26 +120,21 @@ import java.util.Map;
                         optional = true, defaultValue = "wso2carbon"),
                 @Parameter(
                         name = "headers",
-                        description = "The headers that should be included as a HTTP request headers. There can be " +
-                                "any number of headers concatenated on following format. " +
-                                "\"'header1:value1','header2:value2'\". User can include content-type header if he " +
-                                "need to any specific type for payload if not system get the mapping type as the " +
-                                "content-Type header (ie. @map(xml):application/xml,@map(json):application/json," +
-                                "@map(text):plain/text ) and if user does not include any mapping type then system " +
-                                "gets the 'plain/text' as default Content-Type header. If user does not include " +
-                                "Content-Length header then system calculate the bytes size of payload and include it" +
-                                " as content-length header.",
+                        description = "The headers that should be included as HTTP request headers. \n" +
+                                "There can be any number of headers concatenated in following format. " +
+                                "\"'header1:value1','header2:value2'\". User can include Content-Type header if he " +
+                                "needs to use a specific content-type for the payload. Or else, system decides the " +
+                                "Content-Type by considering the type of sink mapper, in following way.\n" +
+                                " - @map(xml):application/xml\n" +
+                                " - @map(json):application/json\n" +
+                                " - @map(text):plain/text )\n" +
+                                " - if user does not include any mapping type then the system gets 'plain/text' " +
+                                "as default Content-Type header.\n" +
+                                "Note that providing content-length as a header is not supported. The size of the " +
+                                "payload will be automatically calculated and included in the content-length header.",
                         type = {DataType.STRING},
                         optional = true,
                         defaultValue = " "),
-                @Parameter(
-                        name = "encode.payload",
-                        description = "This defines whether the body of the payload of http message should be encoded" +
-                                " or not. This is useful when sending form data as url encoded values." +
-                                " Note that this can be used only when the mapper type is keyvalue.",
-                        type = {DataType.BOOL},
-                        optional = true,
-                        defaultValue = "false"),
                 @Parameter(
                         name = "method",
                         description = "For HTTP events, HTTP_METHOD header should be included as a request header." +
@@ -422,16 +421,15 @@ import java.util.Map;
 public class HttpSink extends Sink {
     private static final Logger log = Logger.getLogger(HttpSink.class);
     private String streamID;
-    private HttpClientConnector clientConnector;
-    private String mapType;
+    HttpClientConnector clientConnector;
+    String mapType;
     private Map<String, String> httpURLProperties;
-    private Option httpHeaderOption;
-    private Option httpMethodOption;
+    Option httpHeaderOption;
+    Option httpMethodOption;
     private String authorizationHeader;
     private String userName;
     private String userPassword;
     private String publisherURL;
-    private boolean encodePayload;
 
     /**
      * Returns the list of classes which this sink can consume.
@@ -443,7 +441,7 @@ public class HttpSink extends Sink {
      */
     @Override
     public Class[] getSupportedInputEventClasses() {
-        return new Class[] {String.class, Object.class};
+        return new Class[] {String.class, Map.class};
     }
 
     /**
@@ -454,7 +452,7 @@ public class HttpSink extends Sink {
      */
     @Override
     public String[] getSupportedDynamicOptions() {
-        return new String[] {HttpConstants.HEADERS, HttpConstants.METHOD, HttpConstants.CONTENT_TYPE};
+        return new String[] {HttpConstants.HEADERS, HttpConstants.METHOD};
     }
 
     /**
@@ -517,14 +515,6 @@ public class HttpSink extends Sink {
                 .CLIENT_BOOTSTRAP_WORKER_GROUP_SIZE, HttpConstants.CLIENT_BOOTSTRAP_WORKER_GROUP_SIZE_VALUE);
         String bootstrapBoss = configReader.readConfig(HttpConstants
                 .CLIENT_BOOTSTRAP_BOSS_GROUP_SIZE, HttpConstants.CLIENT_BOOTSTRAP_BOSS_GROUP_SIZE_VALUE);
-        try {
-            encodePayload =
-                    Boolean.parseBoolean(optionHolder.validateAndGetStaticValue(HttpConstants.ENCODE, "false"));
-        } catch (InputMismatchException e) {
-            throw new SiddhiAppValidationException("Option value provided for attribute " +
-                    "'encodePayload' is not of type Boolean.");
-        }
-
         //Generate basic sender configurations
         SenderConfiguration senderConfig = HttpSinkUtil.getSenderConfigurations(httpURLProperties,
                 clientStoreFile, clientStorePass, configReader);
@@ -620,7 +610,7 @@ public class HttpSink extends Sink {
                 HttpConstants.METHOD_DEFAULT : httpMethodOption.getValue(dynamicOptions);
         List<Header> headersList = HttpSinkUtil.getHeaders(headers);
         String contentType = HttpSinkUtil.getContentType(mapType, headersList);
-        String messageBody = getPayload(payload);
+        String messageBody = getMessageBody(payload);
         HTTPCarbonMessage cMessage = createHttpCarbonMessage(httpMethod);
         cMessage = generateCarbonMessage(headersList, contentType, httpMethod, cMessage);
         cMessage.addHttpContent(new DefaultLastHttpContent(Unpooled.wrappedBuffer(messageBody
@@ -737,7 +727,7 @@ public class HttpSink extends Sink {
      * @param cMessage    carbon message to be send to the endpoint.
      * @return generated carbon message.
      */
-    private HTTPCarbonMessage generateCarbonMessage(List<Header> headers, String contentType,
+     HTTPCarbonMessage generateCarbonMessage(List<Header> headers, String contentType,
                                                     String httpMethod, HTTPCarbonMessage cMessage) {
         /*
          * set carbon message properties which is to be used in carbon transport.
@@ -781,25 +771,20 @@ public class HttpSink extends Sink {
         return cMessage;
     }
 
-    private String getPayload(Object payload) {
+    String getMessageBody(Object payload) {
         if (HttpConstants.MAP_KEYVALUE.equals(mapType)) {
             Map<String, Object> params = (HashMap) payload;
-            if (encodePayload) {
-                return params.entrySet().stream()
-                        .map(p -> encodeParameter(p.getKey()) + "=" + encodeParameter(p.getValue()))
-                        .reduce("", (p1, p2) -> p1 + "&" + p2);
-            } else {
-                return params.entrySet().stream()
-                        .map(p -> p.getKey() + "=" + p.getValue())
-                        .reduce("", (p1, p2) -> p1 + "&" + p2);
-            }
+            return params.entrySet().stream()
+                    .map(p -> encodeMessage(p.getKey()) + "=" + encodeMessage(p.getValue()))
+                    .reduce("", (p1, p2) -> p1 + "&" + p2);
+        } else {
+            return (String) payload;
         }
-        return (String) payload;
     }
 
-    private String encodeParameter(Object s) {
+    private String encodeMessage(Object s) {
         try {
-            return URLEncoder.encode(s.toString(), HttpConstants.DEFAULT_ENCODING);
+            return URLEncoder.encode((String) s, HttpConstants.DEFAULT_ENCODING);
         } catch (UnsupportedEncodingException e) {
             throw new SiddhiAppRuntimeException("Execution failed due to " + e.getMessage(), e);
         }

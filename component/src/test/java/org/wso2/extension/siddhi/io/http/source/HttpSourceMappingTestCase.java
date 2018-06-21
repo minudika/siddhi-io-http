@@ -243,7 +243,8 @@ public class HttpSourceMappingTestCase {
         SiddhiManager siddhiManager = new SiddhiManager();
         siddhiManager.setPersistenceStore(persistenceStore);
         siddhiManager.setExtension("xml-input-mapper", JsonSourceMapper.class);
-        String inStreamDefinition = "" + "@source(type='http', @map(type='json'), "
+        String inStreamDefinition = "" + "@source(type='http', @map(type='json', @attributes(headers='name', " +
+                "name='name', age='age', country='country')), "
                 + "receiver.url='http://localhost:8005/endpoints/RecPro', " + "basic.auth.enabled='false'" + ")"
                 + "define stream inputStream (name string, age int, country string);";
         String query = ("@info(name = 'query') "
