@@ -33,7 +33,6 @@ import java.util.concurrent.Executors;
  */
 public class HttpResponseConnectorListener implements HttpConnectorListener {
     private static final Logger log = LoggerFactory.getLogger(HttpResponseConnectorListener.class);
-    private HttpResponseProcessor httpWorkerThread;
     private SourceEventListener sourceEventListener;
     private String sinkId;
     private ExecutorService executorService;
@@ -64,6 +63,8 @@ public class HttpResponseConnectorListener implements HttpConnectorListener {
     public void onError(Throwable throwable) {
         log.error("Error occurred during processing response for the request sent by http-request-sink with " +
                 "'sink.id' = " + sinkId, throwable);
+        sourceEventListener.onEvent("Error occured when connecting to the end point : "
+                + throwable.getMessage(), null);
     }
 
     String getSiddhiAppName() {

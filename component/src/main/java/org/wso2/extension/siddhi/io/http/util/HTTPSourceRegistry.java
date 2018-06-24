@@ -27,18 +27,18 @@ import java.util.concurrent.ConcurrentHashMap;
  * Result handler
  */
 public class HTTPSourceRegistry {
-    private static Map<String, HttpResponseSource> responseSourceRegistry = new ConcurrentHashMap<>();
+    private static Map<ResponseSourceID, HttpResponseSource> responseSourceRegistry = new ConcurrentHashMap<>();
 
     // handle response sources
-    public static HttpResponseSource getResponseSource(String sinkId) {
-        return responseSourceRegistry.get(sinkId);
+    public static HttpResponseSource getResponseSource(String sinkId, String statusCode) {
+        return responseSourceRegistry.get(new ResponseSourceID(sinkId, statusCode));
     }
 
-    public static void registerResponseSource(String sinkId, HttpResponseSource source) {
-        responseSourceRegistry.put(sinkId, source);
+    public static void registerResponseSource(String sinkId, String statusCode, HttpResponseSource source) {
+        responseSourceRegistry.put(new ResponseSourceID(sinkId, statusCode), source);
     }
 
-    public static void removeResponseSource(String sinkId) {
-        responseSourceRegistry.remove(sinkId);
+    public static void removeResponseSource(String sinkId, String statusCode) {
+        responseSourceRegistry.remove(new ResponseSourceID(sinkId, statusCode));
     }
 }

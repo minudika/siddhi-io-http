@@ -57,6 +57,8 @@ public class HttpConstants {
     public static final String APPLICATION_JSON = "application/json";
     public static final String APPLICATION_URL_ENCODED = "application/x-www-form-urlencoded";
     public static final String DEFAULT_ENCODING = "UTF-8";
+    public static final String DOWNLOAD_ENABLED = "downloading.enabled";
+    public static final String DEFAULT_DOWNLOAD_ENABLED_VALUE = "false";
 
     //Common util values
     public static final String HTTP_METHOD_POST = "POST"; //method name
@@ -137,6 +139,7 @@ public class HttpConstants {
     public static final String PROXY_USERNAME = "proxy.username";
     public static final String PROXY_PASSWORD = "proxy.password";
     public static final String SINK_PARAMETERS = "parameters";
+    public static final String MSG_ID = "msgId";
 
     //http sink transport properties
     public static final String LATENCY_METRICS_ENABLED = "latency.metrics.enabled";
@@ -187,7 +190,25 @@ public class HttpConstants {
     public static final String HTTP_TRACE_LOG_ENABLED = "httpTraceLogEnabled";
     public static final String LOG_TRACE_ENABLE_DEFAULT_VALUE = "false";
 
+    public static final String DEFAULT_ENCODE_PAYLOAD_VALUE = "false";
+
     public static final String PARAMETER_SEPARATOR = "','";
     public static final String VALUE_SEPARATOR = ":";
 
+    public static final String TRUE = "true";
+    public static final String FALSE = "false";
+
+    public static final String FILE_URL = "file.url";
+    public static final String DESTINATION_PATH = "download.path";
+    public static final String IS_DOWNLOADABLE_CONTENT = "__is_downloadable_content";
+
+    // HTTP codes for response source
+    public static final String HTTP_STATUS_CODE = "http.status.code";
+    public static final String RESPONSE_HTTP_STATUS_CODE = "HTTP_STATUS_CODE";
+    public static final String DEFAULT_HTTP_CODE = "2**";
+    public static final String HTTP_CODE_1XX = "1**";
+    public static final String HTTP_CODE_2XX = "2**";
+    public static final String HTTP_CODE_3XX = "3**";
+    public static final String HTTP_CODE_4XX = "4**";
+    public static final String HTTP_CODE_5XX = "5**";
 }

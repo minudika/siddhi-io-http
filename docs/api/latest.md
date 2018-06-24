@@ -4,7 +4,7 @@
 
 ### http *<a target="_blank" href="https://wso2.github.io/siddhi/documentation/siddhi-4.0/#sink">(Sink)</a>*
 
-<p style="word-wrap: break-word">This extension publish the HTTP events in any HTTP method  POST, GET, PUT, DELETE  via HTTP or https protocols. As the additional features this component can provide basic authentication as well as user can publish events using custom client truststore files when publishing events via https protocol. And also user can add any number of headers including HTTP_METHOD header for each event dynamically.</p>
+<p style="word-wrap: break-word">This extension publish the HTTP events in any HTTP method  POST, GET, PUT, DELETE  via HTTP or https protocols. As the additional features this component can provide basic authentication as well as user can publish events using custom client truststore files when publishing events via https protocol. And also user can add any number of headers including HTTP_METHOD header for each event dynamically.<br>Following content types will be set by default according to the type of sink mapper used.<br>You can override them by setting the new content types in headers.<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- TEXT : text/plain<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- XML : application/xml<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- JSON : application/json<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- KEYVALUE : application/x-www-form-urlencoded</p>
 
 <span id="syntax" class="md-typeset" style="display: block; font-weight: bold;">Syntax</span>
 ```
@@ -63,7 +63,7 @@
     </tr>
     <tr>
         <td style="vertical-align: top">headers</td>
-        <td style="vertical-align: top; word-wrap: break-word">The headers that should be included as a HTTP request headers. There can be any number of headers concatenated on following format. "'header1:value1','header2:value2'". User can include content-type header if he need to any specific type for payload if not system get the mapping type as the content-Type header (ie. @map(xml):application/xml,@map(json):application/json,@map(text):plain/text ) and if user does not include any mapping type then system gets the 'plain/text' as default Content-Type header. If user does not include Content-Length header then system calculate the bytes size of payload and include it as content-length header.</td>
+        <td style="vertical-align: top; word-wrap: break-word">The headers that should be included as HTTP request headers. <br>There can be any number of headers concatenated in following format. "'header1:value1','header2:value2'". User can include Content-Type header if he needs to use a specific content-type for the payload. Or else, system decides the Content-Type by considering the type of sink mapper, in following way.<br>&nbsp;- @map(xml):application/xml<br>&nbsp;- @map(json):application/json<br>&nbsp;- @map(text):plain/text )<br>&nbsp;- if user does not include any mapping type then the system gets 'plain/text' as default Content-Type header.<br>Note that providing content-length as a header is not supported. The size of the payload will be automatically calculated and included in the content-length header.</td>
         <td style="vertical-align: top"> </td>
         <td style="vertical-align: top">STRING</td>
         <td style="vertical-align: top">Yes</td>
@@ -368,6 +368,60 @@
 
 ```
 <p style="word-wrap: break-word">If it is xml mapping expected input should be in following format for FooStream:{&lt;events&gt;    &lt;event&gt;        &lt;symbol&gt;WSO2&lt;/symbol&gt;        &lt;price&gt;55.6&lt;/price&gt;        &lt;volume&gt;100&lt;/volume&gt;    &lt;/event&gt;&lt;/events&gt;,POST,Content-Length:24#Content-Location:USA#Retry-After:120}Above event will generate output as below.~Output http event payload&lt;events&gt;<br>&nbsp;&nbsp;&nbsp;&nbsp;&lt;event&gt;<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;symbol&gt;WSO2&lt;/symbol&gt;<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;price&gt;55.6&lt;/price&gt;<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;volume&gt;100&lt;/volume&gt;<br>&nbsp;&nbsp;&nbsp;&nbsp;&lt;/event&gt;<br>&lt;/events&gt;<br>~Output http event headersContent-Length:24,Content-Location:'USA',Retry-After:120,Content-Type:'application/xml',HTTP_METHOD:'POST',~Output http event propertiesHTTP_METHOD:'POST',HOST:'localhost',PORT:8009PROTOCOL:'http'TO:'/foo'</p>
+
+### http-request *<a target="_blank" href="https://wso2.github.io/siddhi/documentation/siddhi-4.0/#sink">(Sink)</a>*
+
+<p style="word-wrap: break-word">HTTP response sink is correlated with the The HTTP request source, through a unique <code>source.id</code>, and it send a response to the HTTP request source having the same <code>source.id</code>. The response message can be formatted in <code>text</code>, <code>XML</code> or <code>JSON</code> and can be sent with appropriate headers.</p>
+
+<span id="syntax" class="md-typeset" style="display: block; font-weight: bold;">Syntax</span>
+```
+@sink(type="http-request", source.id="<STRING>", message.id="<STRING>", headers="<STRING>", @map(...)))
+```
+
+<span id="query-parameters" class="md-typeset" style="display: block; color: rgba(0, 0, 0, 0.54); font-size: 12.8px; font-weight: bold;">QUERY PARAMETERS</span>
+<table>
+    <tr>
+        <th>Name</th>
+        <th style="min-width: 20em">Description</th>
+        <th>Default Value</th>
+        <th>Possible Data Types</th>
+        <th>Optional</th>
+        <th>Dynamic</th>
+    </tr>
+    <tr>
+        <td style="vertical-align: top">source.id</td>
+        <td style="vertical-align: top; word-wrap: break-word">Identifier of the source.</td>
+        <td style="vertical-align: top"></td>
+        <td style="vertical-align: top">STRING</td>
+        <td style="vertical-align: top">No</td>
+        <td style="vertical-align: top">No</td>
+    </tr>
+    <tr>
+        <td style="vertical-align: top">message.id</td>
+        <td style="vertical-align: top; word-wrap: break-word">Identifier of the message.</td>
+        <td style="vertical-align: top"></td>
+        <td style="vertical-align: top">STRING</td>
+        <td style="vertical-align: top">No</td>
+        <td style="vertical-align: top">Yes</td>
+    </tr>
+    <tr>
+        <td style="vertical-align: top">headers</td>
+        <td style="vertical-align: top; word-wrap: break-word">The headers that should be included as HTTP response headers. There can be any number of headers concatenated on following format. "'header1:value1','header2:value2'" User can include content-type header if he/she need to have any specific type for payload. If not system get the mapping type as the content-Type header (ie.<code>@map(xml)</code>:<code>application/xml</code>, <code>@map(json)</code>:<code>application/json</code>, <code>@map(text)</code>:<code>plain/text</code>) and if user does not include any mapping type then system gets the <code>plain/text</code> as default Content-Type header. If user does not include Content-Length header then system calculate the bytes size of payload and include it as content-length header.</td>
+        <td style="vertical-align: top"> </td>
+        <td style="vertical-align: top">STRING</td>
+        <td style="vertical-align: top">Yes</td>
+        <td style="vertical-align: top">No</td>
+    </tr>
+</table>
+
+<span id="examples" class="md-typeset" style="display: block; font-weight: bold;">Examples</span>
+<span id="example-1" class="md-typeset" style="display: block; color: rgba(0, 0, 0, 0.54); font-size: 12.8px; font-weight: bold;">EXAMPLE 1</span>
+```
+@sink(type='http-response', source.id='sampleSourceId', message.id='{{messageId}}', headers="'content-type:json','content-length:94'"@map(type='json', @payload('{{payloadBody}}')))
+define stream FooStream (payloadBody String, messageId string, headers string);
+
+```
+<p style="word-wrap: break-word">If it is json mapping expected input should be in following format for FooStream:<br>{<br>{"events":<br>&nbsp;&nbsp;&nbsp;&nbsp;{"event":<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"symbol":WSO2,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"price":55.6,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"volume":100,<br>&nbsp;&nbsp;&nbsp;&nbsp;}<br>},<br>0cf708b1-7eae-440b-a93e-e72f801b486a,<br>Content-Length:24#Content-Location:USA<br>}<br><br>Above event will generate response for the matching source message as below.<br><br>~Output http event payload<br>{"events":<br>&nbsp;&nbsp;&nbsp;&nbsp;{"event":<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"symbol":WSO2,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"price":55.6,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"volume":100,<br>&nbsp;&nbsp;&nbsp;&nbsp;}<br>}<br><br>~Output http event headers<br>Content-Length:24,<br>Content-Location:'USA',<br>Content-Type:'application/json'<br></p>
 
 ## Source
 
@@ -752,4 +806,48 @@ define stream FooStream (symbol string, price float, volume long);
 
 ```
 <p style="word-wrap: break-word">Above source listenerConfiguration performs a default XML input mapping. The expected input is as follows:&lt;events&gt;<br>&nbsp;&nbsp;&nbsp;&nbsp;&lt;event&gt;<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;symbol&gt;WSO2&lt;/symbol&gt;<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;price&gt;55.6&lt;/price&gt;<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;volume&gt;100&lt;/volume&gt;<br>&nbsp;&nbsp;&nbsp;&nbsp;&lt;/event&gt;<br>&lt;/events&gt;<br>If basic authentication is enabled via the <code>basic.auth.enabled='true</code> setting, each input event is also expected to contain the <code>Authorization:'Basic encodeBase64(username:Password)'</code> header.</p>
+
+### http-response *<a target="_blank" href="https://wso2.github.io/siddhi/documentation/siddhi-4.0/#source">(Source)</a>*
+
+<p style="word-wrap: break-word">The HTTP request is correlated with the HTTP response sink, through a unique <code>source.id</code>, and for each POST requests it receives via HTTP or HTTPS in format such as <code>text</code>, <code>XML</code> and <code>JSON</code> it sends the response via the HTTP response sink. The individual request and response messages are correlated at the sink using the <code>message.id</code> of the events. If required, you can enable basic authentication at the source to ensure that events are received only from users who are authorized to access the service.</p>
+
+<span id="syntax" class="md-typeset" style="display: block; font-weight: bold;">Syntax</span>
+```
+@source(type="http-response", receiver.url="<STRING>", sink.id="<STRING>", @map(...)))
+```
+
+<span id="query-parameters" class="md-typeset" style="display: block; color: rgba(0, 0, 0, 0.54); font-size: 12.8px; font-weight: bold;">QUERY PARAMETERS</span>
+<table>
+    <tr>
+        <th>Name</th>
+        <th style="min-width: 20em">Description</th>
+        <th>Default Value</th>
+        <th>Possible Data Types</th>
+        <th>Optional</th>
+        <th>Dynamic</th>
+    </tr>
+    <tr>
+        <td style="vertical-align: top">receiver.url</td>
+        <td style="vertical-align: top; word-wrap: break-word">The URL to which the events should be received. User can provide any valid url and if the url is not provided the system will use the following format <code>http://0.0.0.0:9763/&lt;appNAme&gt;/&lt;streamName&gt;</code>If the user want to use SSL the url should be given in following format <code>https://localhost:8080/&lt;streamName&gt;</code></td>
+        <td style="vertical-align: top">http://0.0.0.0:9763/<appNAme>/<streamName></td>
+        <td style="vertical-align: top">STRING</td>
+        <td style="vertical-align: top">Yes</td>
+        <td style="vertical-align: top">No</td>
+    </tr>
+    <tr>
+        <td style="vertical-align: top">sink.id</td>
+        <td style="vertical-align: top; word-wrap: break-word">Identifier need to map the source to sink.</td>
+        <td style="vertical-align: top"></td>
+        <td style="vertical-align: top">STRING</td>
+        <td style="vertical-align: top">No</td>
+        <td style="vertical-align: top">No</td>
+    </tr>
+</table>
+
+<span id="examples" class="md-typeset" style="display: block; font-weight: bold;">Examples</span>
+<span id="example-1" class="md-typeset" style="display: block; color: rgba(0, 0, 0, 0.54); font-size: 12.8px; font-weight: bold;">EXAMPLE 1</span>
+```
+@sink(type='http-request',publisher.url='http://localhost:8080/hello/message', method='POST', connection.timeout='1000', headers='{{headers}}',sink.id='employee-info',@map(type='json', @payload('{{message}}'))) define stream requestStream (body String,headers String);@source(type='http-response', sink.id='employee-info', @map(type='json'))define stream responseStream(name String, id int);
+```
+<p style="word-wrap: break-word">This source will receive the response of the request which is sent by the sink  which has 'employee-info' as the 'sink.id'. The response body is expected to be in json format. After response is processed, relavent event will be sent to responseStream.<br>A sample response is given below.<br>&nbsp;&nbsp;&nbsp;{"event":<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"symbol":WSO2,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"price":55.6,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"volume":100,<br>&nbsp;&nbsp;&nbsp;}<br></p>
 

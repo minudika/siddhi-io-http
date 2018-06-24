@@ -18,18 +18,14 @@
  */
 package org.wso2.extension.siddhi.io.http.sink;
 
+
 import io.netty.buffer.Unpooled;
-import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
-import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpVersion;
 
 import org.apache.log4j.Logger;
 import org.wso2.carbon.messaging.Header;
 import org.wso2.extension.siddhi.io.http.sink.util.HttpSinkUtil;
 import org.wso2.extension.siddhi.io.http.source.HttpResponseMessageListener;
-import org.wso2.extension.siddhi.io.http.source.HttpResponseSource;
-import org.wso2.extension.siddhi.io.http.util.HTTPSourceRegistry;
 import org.wso2.extension.siddhi.io.http.util.HttpConstants;
 import org.wso2.siddhi.annotation.Example;
 import org.wso2.siddhi.annotation.Extension;
@@ -37,12 +33,13 @@ import org.wso2.siddhi.annotation.Parameter;
 import org.wso2.siddhi.annotation.util.DataType;
 import org.wso2.siddhi.core.config.SiddhiAppContext;
 import org.wso2.siddhi.core.event.Event;
+import org.wso2.siddhi.core.exception.SiddhiAppCreationException;
 import org.wso2.siddhi.core.util.config.ConfigReader;
 import org.wso2.siddhi.core.util.transport.DynamicOptions;
+import org.wso2.siddhi.core.util.transport.Option;
 import org.wso2.siddhi.core.util.transport.OptionHolder;
 import org.wso2.siddhi.query.api.definition.Attribute;
 import org.wso2.siddhi.query.api.definition.StreamDefinition;
-import org.wso2.transport.http.netty.common.Constants;
 import org.wso2.transport.http.netty.contract.HttpResponseFuture;
 import org.wso2.transport.http.netty.message.HTTPCarbonMessage;
 
@@ -51,7 +48,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.wso2.extension.siddhi.io.http.util.HttpConstants.EMPTY_STRING;
 
 /**
  * {@code HttpRequestSink} Handle the HTTP publishing tasks.
@@ -125,13 +121,22 @@ public class HttpRequestSink extends HttpSink {
 
     private static final Logger log = Logger.getLogger(HttpRequestSink.class);
     private String sinkId;
+    private boolean isDownloadEnabled;
     private StreamDefinition outputStreamDefinition;
+    private Option destinationPathOption;
 
     @Override
     protected void init(StreamDefinition outputStreamDefinition, OptionHolder optionHolder,
                         ConfigReader configReader, SiddhiAppContext siddhiAppContext) {
         super.init(outputStreamDefinition, optionHolder, configReader, siddhiAppContext);
         this.sinkId = optionHolder.validateAndGetStaticValue(HttpConstants.SINK_ID);
+        this.isDownloadEnabled = Boolean.parseBoolean(optionHolder.validateAndGetStaticValue(HttpConstants
+                .DOWNLOAD_ENABLED, HttpConstants.DEFAULT_DOWNLOAD_ENABLED_VALUE));
+        this.destinationPathOption = optionHolder.getOrCreateOption(HttpConstants.DESTINATION_PATH, null);
+        if (isDownloadEnabled && destinationPathOption == null) {
+            throw new SiddhiAppCreationException("Download path (download.path) must be provided when downloading is " +
+                    "enabled.");
+        }
         this.outputStreamDefinition = outputStreamDefinition;
     }
 
@@ -144,25 +149,29 @@ public class HttpRequestSink extends HttpSink {
      */
     @Override
     public void publish(Object payload, DynamicOptions dynamicOptions) {
+        if (!publisherURLOption.isStatic()) {
+            initClientConnector(dynamicOptions);
+        }
         String headers = httpHeaderOption.getValue(dynamicOptions);
-        String httpMethod = EMPTY_STRING.equals(httpMethodOption.getValue(dynamicOptions)) ?
+        String httpMethod = HttpConstants.EMPTY_STRING.equals(httpMethodOption.getValue(dynamicOptions)) ?
                 HttpConstants.METHOD_DEFAULT : httpMethodOption.getValue(dynamicOptions);
         List<Header> headersList = HttpSinkUtil.getHeaders(headers);
         String contentType = HttpSinkUtil.getContentType(mapType, headersList);
         String messageBody = getMessageBody(payload);
-        HttpMethod httpReqMethod = new HttpMethod(httpMethod);
-        HTTPCarbonMessage cMessage = new HTTPCarbonMessage(
-                new DefaultHttpRequest(HttpVersion.HTTP_1_1, httpReqMethod, EMPTY_STRING));
+        HTTPCarbonMessage cMessage = createHttpCarbonMessage(httpMethod);
         cMessage = generateCarbonMessage(headersList, contentType, httpMethod, cMessage);
-        if (!Constants.HTTP_GET_METHOD.equals(httpMethod)) {
-            cMessage.addHttpContent(new DefaultLastHttpContent(Unpooled.wrappedBuffer(messageBody
-                    .getBytes(Charset.defaultCharset()))));
-        }
-        HttpResponseSource source = HTTPSourceRegistry.getResponseSource(sinkId);
-        HttpResponseFuture httpResponseFuture = clientConnector.send(cMessage);
+        cMessage.addHttpContent(new DefaultLastHttpContent(Unpooled.wrappedBuffer(messageBody
+                .getBytes(Charset.defaultCharset()))));
+                HttpResponseFuture httpResponseFuture = clientConnector.send(cMessage);
         HttpResponseMessageListener httpListener =
-                new HttpResponseMessageListener(getTrpProperties(dynamicOptions), source);
+                new HttpResponseMessageListener(getTrpProperties(dynamicOptions), sinkId, isDownloadEnabled);
         httpResponseFuture.setHttpConnectorListener(httpListener);
+    }
+
+    @Override
+    public String[] getSupportedDynamicOptions() {
+        return new String[] {HttpConstants.HEADERS, HttpConstants.METHOD,
+                HttpConstants.DESTINATION_PATH, HttpConstants.PUBLISHER_URL};
     }
 
     private Map<String, Object> getTrpProperties(DynamicOptions dynamicOptions) {
@@ -173,6 +182,24 @@ public class HttpRequestSink extends HttpSink {
         for (int i = 0; i < attributes.size(); i++) {
             trpProperties.put(attributes.get(i).getName(), data[i]);
         }
+        if (isDownloadEnabled) {
+            trpProperties.put(HttpConstants.DESTINATION_PATH, destinationPathOption.getValue(dynamicOptions));
+        }
         return trpProperties;
+    }
+
+    private Map<String, String> getDownloads(DynamicOptions dynamicOptions) {
+        if (!isDownloadEnabled) {
+            return null;
+        }
+        Event event = dynamicOptions.getEvent();
+        Object[] data = event.getData();
+        List<Attribute> attributes = outputStreamDefinition.getAttributeList();
+        Map<String, String> downloads = new HashMap<>();
+
+        downloads.put(HttpConstants.FILE_URL, (String) data[0]);
+        downloads.put(HttpConstants.DESTINATION_PATH, (String) data[1]);
+
+        return downloads;
     }
 }

@@ -43,13 +43,12 @@ import static org.wso2.extension.siddhi.io.http.util.HttpConstants.DEFAULT_WORKE
         name = "http-response",
         namespace = "source",
         description = "The HTTP request is correlated with the " +
-                "HTTP response sink, through a unique `source.id`, and for each POST requests it receives via " +
-                "HTTP or HTTPS in format such as `text`, `XML` and `JSON` it sends the response via" +
-                " the HTTP response sink. " +
-                "The individual request and response messages are correlated at the sink using the `message.id` of " +
-                "the events. " +
-                "If required, you can enable basic authentication at the source " +
-                "to ensure that events are received only from users who are authorized to access the service.",
+        "HTTP response sink, through a unique `source.id`, and for each POST requests it receives via " +
+        "HTTP or HTTPS in format such as `text`, `XML` and `JSON` it sends the response via the HTTP response sink. " +
+        "The individual request and response messages are correlated at the sink using the `message.id` of " +
+        "the events. " +
+        "If required, you can enable basic authentication at the source " +
+        "to ensure that events are received only from users who are authorized to access the service.",
         parameters = {
                 @Parameter(name = "receiver.url",
                         description = "The URL to which the events should be received. " +
@@ -87,7 +86,7 @@ import static org.wso2.extension.siddhi.io.http.util.HttpConstants.DEFAULT_WORKE
                                 "       \"price\":55.6,\n"  +
                                 "       \"volume\":100,\n" +
                                 "   }\n")}
-)
+        )
 
 public class HttpResponseSource extends Source {
 
@@ -99,6 +98,7 @@ public class HttpResponseSource extends Source {
     private String workerThread;
     private HttpResponseConnectorListener httpResponseSourceListener;
     private HttpResponseSourceConnectorRegistry httpConnectorRegistry;
+    private String httpStatusCode;
 
 
     @Override
@@ -113,6 +113,8 @@ public class HttpResponseSource extends Source {
         this.siddhiAppName = siddhiAppContext.getName();
         this.workerThread = optionHolder
                 .validateAndGetStaticValue(HttpConstants.WORKER_COUNT, DEFAULT_WORKER_COUNT);
+        this.httpStatusCode = optionHolder.validateAndGetStaticValue(HttpConstants.HTTP_STATUS_CODE,
+                HttpConstants.HTTP_CODE_2XX);
     }
 
     @Override
@@ -125,15 +127,15 @@ public class HttpResponseSource extends Source {
         this.httpResponseSourceListener =
                 new HttpResponseConnectorListener(Integer.parseInt(workerThread), sourceEventListener, sinkId,
                         requestedTransportPropertyNames, siddhiAppName);
-        this.httpConnectorRegistry.registerSourceListener(httpResponseSourceListener, sinkId);
+        this.httpConnectorRegistry.registerSourceListener(httpResponseSourceListener, sinkId, httpStatusCode);
 
-        HTTPSourceRegistry.registerResponseSource(sinkId, this);
+        HTTPSourceRegistry.registerResponseSource(sinkId, httpStatusCode, this);
     }
 
     @Override
     public void disconnect() {
-        this.httpConnectorRegistry.unregisterSourceListener(this.sinkId, siddhiAppName);
-        HTTPSourceRegistry.removeResponseSource(sinkId);
+        this.httpConnectorRegistry.unregisterSourceListener(sinkId, httpStatusCode, siddhiAppName);
+        HTTPSourceRegistry.removeResponseSource(sinkId, httpStatusCode);
     }
 
     @Override
